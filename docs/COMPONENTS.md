@@ -66,6 +66,7 @@ Pi does not use the Claude skill loader. Pi-specific behavior is in:
 - `home/.pi/agent/extensions/`
 - `home/.pi/agent/settings.json`
 - `home/.pi/agent/npm/package.json`
+- `home/.pi-lens/config.json` disables automatic Lens context injection while keeping Lens available on demand
 
 Current Pi npm dependencies:
 

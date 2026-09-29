@@ -74,8 +74,9 @@ chmod +x ~/.claude/statusline-command.sh ~/.claude/hooks/*.sh
 ### 3. Pi layer
 
 ```sh
-mkdir -p ~/.pi/agent
+mkdir -p ~/.pi/agent ~/.pi-lens
 rsync -a home/.pi/agent/ ~/.pi/agent/ --exclude npm/node_modules
+rsync -a home/.pi-lens/ ~/.pi-lens/
 npm install --prefix ~/.pi/agent/npm --ignore-scripts
 npm audit --prefix ~/.pi/agent/npm --package-lock-only
 ```

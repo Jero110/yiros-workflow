@@ -25,6 +25,7 @@ cache/
 logs/
 file-history/
 rate-limits/
+.cmuxterm/
 node_modules/
 .venv/
 __pycache__/

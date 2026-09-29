@@ -35,6 +35,17 @@ repo_regular_files() {
   done < <(repo_files)
 }
 
+printf 'Checking local runtime artifacts...\n'
+if find . \
+  \( -path './.git' -o -path './home/.pi/agent/npm/node_modules' \) -prune -o \
+  \( -name '~' -o -name '.cmuxterm' \) -print | grep -q .; then
+  find . \
+    \( -path './.git' -o -path './home/.pi/agent/npm/node_modules' \) -prune -o \
+    \( -name '~' -o -name '.cmuxterm' \) -print
+  printf 'local cmux/runtime artifact found; remove it before publishing\n' >&2
+  exit 1
+fi
+
 printf 'Checking tracked filenames...\n'
 if repo_files | grep -E '(^|/)(auth\.json|settings\.local\.json|history\.jsonl|credentials?|secrets?)(/|$|\.)'; then
   printf 'blocked sensitive filename is tracked\n' >&2
