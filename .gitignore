@@ -2,9 +2,13 @@
 .DS_Store
 *.swp
 *~
+*.bak
+*.bak.*
+*.bak-*
 
 # Secrets and machine-local runtime state
 auth.json
+settings.local.json
 *auth*.json
 *token*
 *secret*

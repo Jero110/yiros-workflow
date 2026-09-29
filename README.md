@@ -1,202 +1,151 @@
-# yiros-workflow
+# Yiros Workflow
 
-Personal workflow backup for moving to a new machine. This repo stores the parts of my agent/terminal setup that are meant to be portable: Pi, Claude Code, Codex, cmux, Ghostty, shared skills, shell helpers, and themes.
+Portable cmux-first workflow for Pi, Claude Code, Codex, and human operators.
 
-Do not treat this as a blind dotfiles installer. Review paths first, then copy the pieces you want.
-
-This public version is sanitized: machine-specific absolute paths, Codex project allow rules, Claude plugin/job metadata, auth files, sessions, logs, and caches are intentionally omitted or templated.
+It is not a dotfiles dump. It is a small set of reusable agent instructions, skills, cmux hooks, harness config, and optional terminal theme files. Credentials, sessions, logs, caches, local permissions, and backups stay out of the repo.
 
 ## What is included
 
-### Machine dependencies
+| Layer | Path | What it changes | Install if you want |
+| --- | --- | --- | --- |
+| Shared agent protocol | `home/.agents/` | Global cross-harness rules and shared skills | Pi/Claude/Codex to coordinate the same way |
+| Claude Code | `home/.claude/` | Claude settings, statusline, hooks, Claude skills | Claude Code as planner/executor/worker/reviewer |
+| Pi | `home/.pi/agent/` | Pi settings, extensions, theme, npm packages | Pi inside the same cmux workflow |
+| Codex | `home/.codex/` | Codex instructions, hooks, rules | Codex panes in the workflow |
+| cmux | `home/.cmux/`, `home/.config/cmux/` | cmux hooks and UI config | event-based multi-agent orchestration |
+| Terminal UI | `home/.config/ghostty/`, `zsh/` | Ghostty and Powerlevel10k themes only | the same terminal look |
+| Claude helper shell | `home/.config/zsh/cc.zsh` | optional `cc` wrapper for named Claude sessions | easier Claude session management |
 
-- `Brewfile` — Homebrew formulae/casks, VS Code extensions, global npm/uv tools captured from this machine. Use it as a starting point on a fresh Mac, then install apps that are not managed by Homebrew.
+Shell startup files like `.zshrc`, `.zprofile`, and `.bash_profile` are intentionally not shipped. If you do not want to change your terminal UI, skip the Terminal UI layer.
 
-### Terminal and UI
+## The workflow model
 
-- `home/.config/ghostty/` — Ghostty config, theme, and local theme backups.
-- `home/.config/cmux/` — cmux UI config, workspace colors, pane colors, shortcuts, and backups.
-- `home/.cmux/hooks/` — cmux hook scripts, mainly Codex lifecycle/notification hooks.
-- `home/.p10k.zsh` — Powerlevel10k prompt theme.
-- `home/.zshrc`, `home/.zprofile`, `home/.bash_profile` — shell startup files.
-- `home/.config/zsh/cc.zsh` — Claude Code wrapper/helpers.
+1. A human starts from cmux.
+2. A planner writes a plan.
+3. An executor opens isolated worker panes/worktrees.
+4. Workers report back through cmux, not by stealing each other's panes.
+5. Reviewers check completed diffs against the original brief.
+6. Handoffs use `cmux send` plus `cmux send-key enter`, with an explicit `ACK <task-id>`.
 
-### Pi
+Agents get the protocol from `~/.agents/shared/cross-harness-workflow.md` plus their harness-specific global instructions.
 
-- `home/.pi/agent/AGENTS.md` — global Pi instructions.
-- `home/.pi/agent/settings.json` — Pi settings: default provider/model, theme, packages.
-- `home/.pi/agent/models-store.json` — model catalog/custom model metadata.
-- `home/.pi/agent/extensions/` — custom Pi extensions:
-  - `cmux-session.ts`
-  - `harness-handoff.ts`
-  - `laya-triage.ts`
-  - `selfhealing.ts`
-  - `usage-footer.ts`
-  - `workflow.ts`
-- `home/.pi/agent/themes/` — Pi themes, including `dark-tokyo-soft.json`.
-- `home/.pi/agent/npm/` — Pi local package manifest/lock for installed packages.
+## Skills layout
 
-### Claude Code
+Claude Code and the shared agent layer intentionally share many skills through symlinks:
 
-- `home/.claude/CLAUDE.md` — global Claude Code instructions.
-- `home/.claude/settings.json` and `settings.local.json` — Claude Code settings and local allowlist.
-- `home/.claude/statusline-command.sh` — custom status line.
-- `home/.claude/hooks/` — custom Claude hooks.
-- `home/.claude/skills/` — Claude skills, including workflow orchestration skills.
+- `home/.agents/skills/*`: shared skills usable across harnesses.
+- `home/.claude/skills/*`: Claude-native skills.
+- symlinked skills are one logical skill, exposed in both places.
+- Pi-specific functionality lives under `home/.pi/agent/extensions/` and npm packages, not as Claude skills.
 
-Important custom scripts inside skills:
+See `docs/COMPONENTS.md` for the map.
 
-- `home/.claude/skills/harnesses/scripts/agent-inbox.py` — inbox/watcher helper used by workflow/cmux orchestration.
-- `home/.claude/skills/executor/scripts/pretrust.sh` — pretrust helper for worker worktrees.
-- `home/.claude/skills/executor/scripts/wait-agents.sh` — helper for waiting on agent panes.
-- `home/.claude/skills/research/plantillas/lanzar.sh` — research launcher template.
-- `home/.claude/skills/research/referencias/auditar.sh` — research audit helper.
-- `home/.claude/skills/research/referencias/probar-fuentes.sh` — source-check helper.
+## Quick safety check
 
-### Shared skills and harness workflow
+```sh
+git clone https://github.com/Jero110/yiros-workflow.git ~/workflow
+cd ~/workflow
+./scripts/check-public.sh --online
+```
 
-- `home/.agents/shared/cross-harness-workflow.md` — shared cross-harness coordination protocol.
-- `home/.agents/skills/` — shared skills used by Claude/Pi/Codex workflows.
+Current npm audit status for `home/.pi/agent/npm`: `found 0 vulnerabilities`.
 
-Some skills are symlinks between `.agents/skills` and `.claude/skills`; keep symlinks intact when restoring.
+`pi-background-tasks` is not included because its compatible dependency chain previously pulled a moderate `undici` advisory.
 
-### Codex/OpenAI harness
+## Install only what you want
 
-- `home/.codex/AGENTS.md` — global Codex instructions.
-- `home/.codex/config.toml` — Codex model/config/trust settings.
-- `home/.codex/hooks.json` — Codex hooks.
-- `home/.codex/rules/` — Codex rules.
-- `home/.codex/herdr-agent-state.sh` — harness state helper.
+Run commands from the repo root. Review files before overwriting existing config.
 
-## What is intentionally excluded
+### 1. Shared protocol only
 
-This repo should not contain credentials or machine-local runtime state. Do not add these unless you know exactly why:
+```sh
+mkdir -p ~/.agents
+rsync -a home/.agents/ ~/.agents/
+```
 
-- `auth.json`
-- tokens, secrets, keys, API keys
-- histories and transcripts
-- sessions
-- logs
-- sqlite/db files
-- caches
-- telemetry
-- `node_modules`
-- virtualenvs
-- Claude plugin metadata/jobs/accounts
+### 2. Claude Code layer
 
-## Fresh machine restore guide for an agent
+```sh
+mkdir -p ~/.claude
+rsync -a home/.claude/ ~/.claude/
+chmod +x ~/.claude/statusline-command.sh ~/.claude/hooks/*.sh
+```
 
-If an agent is asked to restore this setup on a new machine, use this procedure:
+### 3. Pi layer
 
-1. Clone repo:
+```sh
+mkdir -p ~/.pi/agent
+rsync -a home/.pi/agent/ ~/.pi/agent/ --exclude npm/node_modules
+npm install --prefix ~/.pi/agent/npm --ignore-scripts
+npm audit --prefix ~/.pi/agent/npm --package-lock-only
+```
 
-   ```sh
-   git clone https://github.com/Jero110/yiros-workflow.git ~/workflow
-   cd ~/workflow
-   ```
+### 4. Codex layer
 
-   Optional machine dependencies, if Homebrew is available:
+```sh
+mkdir -p ~/.codex
+rsync -a home/.codex/ ~/.codex/
+chmod +x ~/.codex/herdr-agent-state.sh
+```
 
-   ```sh
-   brew bundle --file Brewfile
-   ```
+### 5. cmux layer
 
-   Install separately if missing: cmux.app, Claude.app, ChatGPT/Codex app, and any private/manual app not handled by Homebrew.
+```sh
+mkdir -p ~/.cmux ~/.config/cmux
+rsync -a home/.cmux/hooks/ ~/.cmux/hooks/
+rsync -a home/.config/cmux/ ~/.config/cmux/
+```
 
-2. Review before copying:
+### 6. Optional terminal UI
 
-   ```sh
-   find home -maxdepth 3 -type f | sort
-   find home -type l -ls
-   ```
+```sh
+mkdir -p ~/.config/ghostty
+rsync -a home/.config/ghostty/ ~/.config/ghostty/
+```
 
-3. Copy terminal configs:
+Powerlevel10k themes are in `zsh/`. Copy one manually only if you want that prompt style.
 
-   ```sh
-   mkdir -p ~/.config ~/.cmux
-   rsync -a home/.config/ghostty/ ~/.config/ghostty/
-   rsync -a home/.config/cmux/ ~/.config/cmux/
-   rsync -a home/.cmux/hooks/ ~/.cmux/hooks/
-   ```
+### 7. Optional Claude shell helper
 
-4. Copy Pi config:
+```sh
+mkdir -p ~/.config/zsh
+cp home/.config/zsh/cc.zsh ~/.config/zsh/cc.zsh
+printf '\nsource ~/.config/zsh/cc.zsh\n' >> ~/.zshrc
+```
 
-   ```sh
-   mkdir -p ~/.pi/agent
-   cp home/.pi/agent/AGENTS.md ~/.pi/agent/AGENTS.md
-   cp home/.pi/agent/settings.json ~/.pi/agent/settings.json
-   cp home/.pi/agent/models-store.json ~/.pi/agent/models-store.json
-   rsync -a home/.pi/agent/extensions/ ~/.pi/agent/extensions/
-   rsync -a home/.pi/agent/themes/ ~/.pi/agent/themes/
-   rsync -a home/.pi/agent/npm/ ~/.pi/agent/npm/
-   ```
+The `cc` wrapper keeps Claude permission prompts by default. It only passes `--dangerously-skip-permissions` when you explicitly run with `CC_DANGEROUS_SKIP_PERMISSIONS=1`.
 
-5. Copy Claude Code config and skills:
+## Install with an agent
 
-   ```sh
-   mkdir -p ~/.claude
-   cp home/.claude/CLAUDE.md ~/.claude/CLAUDE.md
-   cp home/.claude/settings.json ~/.claude/settings.json
-   cp home/.claude/settings.local.json ~/.claude/settings.local.json
-   cp home/.claude/statusline-command.sh ~/.claude/statusline-command.sh
-   rsync -a home/.claude/hooks/ ~/.claude/hooks/
-   rsync -a home/.claude/skills/ ~/.claude/skills/
-   chmod +x ~/.claude/statusline-command.sh ~/.claude/hooks/*.sh 2>/dev/null || true
-   ```
+Give the agent this instruction:
 
-6. Copy shared agent skills:
+> Read `docs/AGENT_INSTALL.md` and `docs/COMPONENTS.md`. Inspect my existing files, propose the exact layers and destination paths, and wait for approval before overwriting anything. Do not copy credentials, sessions, logs, caches, histories, local permission files, or backups.
 
-   ```sh
-   mkdir -p ~/.agents
-   rsync -a home/.agents/ ~/.agents/
-   ```
+## Verify
 
-7. Copy Codex config:
+```sh
+./scripts/check-public.sh --online
+pi --help
+claude --version
+codex --version
+cmux ping
+```
 
-   ```sh
-   mkdir -p ~/.codex
-   cp home/.codex/AGENTS.md ~/.codex/AGENTS.md
-   cp home/.codex/config.toml ~/.codex/config.toml
-   cp home/.codex/hooks.json ~/.codex/hooks.json
-   cp home/.codex/herdr-agent-state.sh ~/.codex/herdr-agent-state.sh
-   rsync -a home/.codex/rules/ ~/.codex/rules/
-   chmod +x ~/.codex/herdr-agent-state.sh 2>/dev/null || true
-   ```
+Authentication is always local and manual:
 
-8. Copy shell files if desired:
+```sh
+pi auth
+claude
+codex login
+gh auth login
+```
 
-   ```sh
-   cp home/.zshrc ~/.zshrc
-   cp home/.zprofile ~/.zprofile
-   cp home/.p10k.zsh ~/.p10k.zsh
-   mkdir -p ~/.config/zsh
-   cp home/.config/zsh/cc.zsh ~/.config/zsh/cc.zsh
-   ```
+## Maintenance rules
 
-9. Re-auth manually. The repo does not include credentials:
+- No credentials, tokens, sessions, histories, logs, caches, local permissions, or backups.
+- No `node_modules`; keep only `package.json` and `package-lock.json`.
+- Keep symlinks as symlinks; use `rsync -a`.
+- Run `./scripts/check-public.sh --online` before publishing.
+- Review every diff before pushing.
 
-   ```sh
-   pi auth
-   claude
-   codex login
-   gh auth login
-   ```
-
-10. Verify:
-
-   ```sh
-   pi --help
-   cmux ping
-   git -C ~/workflow status --short --branch
-   ```
-
-## Agent instruction for future updates
-
-When asked to update this repo:
-
-1. Work in `~/workflow`.
-2. Copy only portable config, skills, extensions, themes, scripts, and docs.
-3. Do not copy credentials, sessions, histories, logs, caches, sqlite/db files, telemetry, or generated runtime state.
-4. Run a quick keyword scan for secrets before committing.
-5. Commit with a clear message.
-6. Push to `origin main` only when explicitly asked.
+See `SECURITY.md` and `THIRD_PARTY_NOTICES.md` before redistributing bundled material.

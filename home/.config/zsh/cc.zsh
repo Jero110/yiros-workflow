@@ -1,11 +1,9 @@
 # ─── cc — Claude Code wrapper ──────────────────────────────────────────────────
-# Source this file from ~/.zshrc:  source ~/Desktop/other/Vs/ClaudeMonitor/cc.zsh
+# Source this file from ~/.zshrc:  source ~/.config/zsh/cc.zsh
 #
-# All invocations run with --dangerously-skip-permissions: no tool-permission
-# prompts, no workspace-trust dialog. Needed for unattended worker dispatch
-# (orquestador skill) — a fresh worktree otherwise blocks on trust y/n. This
-# means a `cc` session (named or not) never pauses to ask before running a
-# command, including destructive ones.
+# Sessions use Claude Code's normal permission checks by default. To opt in to
+# unattended execution for a controlled environment, set
+# CC_DANGEROUS_SKIP_PERMISSIONS=1 for that invocation.
 #
 # COMMANDS
 #   cc [args...]           → plain claude, nothing named/saved
@@ -47,31 +45,38 @@ _cc_jsonl_exists() {
 
 # Fast JSON helpers — pure shell to avoid python3 startup cost on tab-complete
 _cc_get_id() {
-  python3 -c "
-import json,sys
+  python3 - "$_CC_MAP" "$1" 2>/dev/null <<'PY'
+import json, sys
 try:
-  d=json.load(open('$_CC_MAP'))
-  v=d.get('$1',{})
-  print(v.get('id','') if isinstance(v,dict) else v)
-except: pass
-" 2>/dev/null
+    data = json.load(open(sys.argv[1]))
+    value = data.get(sys.argv[2], {})
+    print(value.get("id", "") if isinstance(value, dict) else value)
+except Exception:
+    pass
+PY
 }
 
 _cc_save() {
   # _cc_save <name> <id> <cwd>
-  python3 -c "
-import json,os
-f='$_CC_MAP'; d={}
-try: d=json.load(open(f))
-except: pass
-d['$1']={'id':'$2','cwd':'$3','updated':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'}
-json.dump(d,open(f,'w'),indent=2)
-" 2>/dev/null
+  python3 - "$_CC_MAP" "$1" "$2" "$3" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null <<'PY'
+import json, sys
+path, name, sid, cwd, updated = sys.argv[1:6]
+try:
+    data = json.load(open(path))
+except Exception:
+    data = {}
+data[name] = {"id": sid, "cwd": cwd, "updated": updated}
+json.dump(data, open(path, "w"), indent=2)
+PY
 }
 
 # ── main command ────────────────────────────────────────────────────────────────
 cc() {
   local cmd="${1:-}"
+  local -a permission_args=()
+  if [[ "${CC_DANGEROUS_SKIP_PERMISSIONS:-0}" == "1" ]]; then
+    permission_args=(--dangerously-skip-permissions)
+  fi
 
   case "$cmd" in
     ls|list) _cc_list; return ;;
@@ -95,11 +100,9 @@ cc() {
   esac
 
   # No name → plain claude, nothing saved to session-names.json (same as
-  # running `claude` directly). --dangerously-skip-permissions also skips
-  # the workspace trust dialog, which otherwise blocks every fresh worktree
-  # dispatched by the orquestador skill on an interactive y/n prompt.
+  # running `claude` directly).
   if [ -z "$cmd" ]; then
-    command claude --dangerously-skip-permissions "$@"
+    command claude "${permission_args[@]}" "$@"
     return 0
   fi
 
@@ -110,17 +113,17 @@ cc() {
   if [ -n "$existing_id" ]; then
     echo "▶ Resuming: $name  ($existing_id)"
     _cc_save "$name" "$existing_id" "$cwd"
-    command claude --dangerously-skip-permissions --resume "$existing_id" "$@"
+    command claude "${permission_args[@]}" --resume "$existing_id" "$@"
     if [ $? -ne 0 ] && ! _cc_jsonl_exists "$existing_id"; then
       # claude exits non-zero and writes no jsonl when the saved id no longer
       # has a conversation to resume ("No conversation found"). Fall back to
       # a fresh session instead of leaving the user stuck.
       echo "▶ Saved session id is gone — starting new session: $name"
-      command claude --dangerously-skip-permissions "$@"
+      command claude "${permission_args[@]}" "$@"
     fi
   else
     echo "▶ New session: $name"
-    command claude --dangerously-skip-permissions "$@"
+    command claude "${permission_args[@]}" "$@"
   fi
 
   # After Claude exits, detect the real session UUID from the newest .jsonl
@@ -132,11 +135,11 @@ cc() {
 _cc_sync_real_id() {
   # Finds the most recently modified .jsonl in ~/.claude/projects that matches
   # the current session name, and updates session-names.json with the real UUID.
-  python3 -c "
-import json, os, glob, time, datetime
+  python3 - "$1" "$2" 2>/dev/null <<'PY'
+import json, os, glob, time, datetime, sys
 
-name = '$1'
-cwd  = '$2'
+name = sys.argv[1]
+cwd = sys.argv[2]
 proj = os.path.expanduser('~/.claude/projects')
 f    = os.path.expanduser('~/.claude/session-names.json')
 
@@ -196,7 +199,7 @@ for mtime, jf in candidates:
   json.dump(data, open(f, 'w'), indent=2)
   print(f'↳ Saved real session id: {sid}')
   exit()
-" 2>/dev/null
+PY
 }
 
 # ── list ────────────────────────────────────────────────────────────────────────
@@ -261,12 +264,12 @@ _cc_rm() {
   fi
 
   local name="$1"
-  python3 -c "
+  python3 - "$name" 2>/dev/null <<'PY'
 import json, os, glob, shutil, sys
 
 f = os.path.expanduser('~/.claude/session-names.json')
 proj = os.path.expanduser('~/.claude/projects')
-name = '$name'
+name = sys.argv[1]
 
 try:
   data = json.load(open(f))
@@ -301,7 +304,7 @@ if removed:
     print(f'Deleted: {r}')
 else:
   print('No .jsonl found (already gone or never created).')
-" 2>/dev/null
+PY
 }
 
 # ── kill ────────────────────────────────────────────────────────────────────────
@@ -390,11 +393,11 @@ _cc_usage() {
     return 1
   fi
 
-  python3 -c "
-import json, os, glob
+  python3 - "$name" "$sid" 2>/dev/null <<'PY'
+import json, os, glob, sys
 
-name = '$name'
-sid  = '$sid'
+name = sys.argv[1]
+sid = sys.argv[2]
 proj = os.path.expanduser('~/.claude/projects')
 
 files = glob.glob(os.path.join(proj, '*', sid + '.jsonl'))
@@ -441,7 +444,7 @@ print(f'  input       {fmt(inp):>8}')
 print(f'  output      {fmt(out):>8}')
 print(f'  cache write {fmt(cache_w):>8}')
 print(f'  cache read  {fmt(cache_r):>8}')
-" 2>/dev/null
+PY
 }
 
 # ── ps ──────────────────────────────────────────────────────────────────────────

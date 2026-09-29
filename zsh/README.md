@@ -1,20 +1,24 @@
-# Zsh / Powerlevel10k configs
+# Optional Zsh / Powerlevel10k themes
 
-Two saved prompt variants:
+This folder is only for prompt styling. Skip it if you do not want to change your terminal UI.
 
-- `p10k-simple-purple-git.zsh`: current minimal/no-background prompt, with git in soft whitish purple `#C9B8FF`.
-- `p10k-orange-white.zsh`: previous orange + white block prompt.
+Variants:
 
-To use one:
+- `p10k-simple-purple-git.zsh`: minimal prompt with soft purple git info.
+- `p10k-orange-white.zsh`: orange + white block prompt.
 
-```bash
+Install one manually:
+
+```sh
 cp zsh/p10k-simple-purple-git.zsh ~/.p10k.zsh
 exec zsh
 ```
 
 or:
 
-```bash
+```sh
 cp zsh/p10k-orange-white.zsh ~/.p10k.zsh
 exec zsh
 ```
+
+This repo does not ship `.zshrc` or `.zprofile`. If your shell does not already load Powerlevel10k, configure that separately.

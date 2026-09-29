@@ -10,12 +10,19 @@ async function run(cmd: string, args: string[], cwd?: string) {
 }
 
 function parseSurface(stdout: string): string | undefined {
-  const match = stdout.match(/surface:([^\s]+)/);
-  return match ? match[1] : undefined;
+  return stdout.match(/surface:[^\s]+/)?.[0];
 }
 
 function splitArgs(args: string): string[] {
   return args.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((s) => s.replace(/^"|"$/g, "")) ?? [];
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function sessionSlug(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "handoff";
 }
 
 export default function (pi: ExtensionAPI) {
@@ -29,16 +36,16 @@ export default function (pi: ExtensionAPI) {
       const model = parts[0] && !parts[0].startsWith("-") ? parts.shift()! : "opus";
       const brief = parts.join(" ").trim();
       const cwd = process.cwd();
-      const session = `cc-handoff-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const session = sessionSlug(`cc-handoff-${new Date().toISOString().replace(/[:.]/g, "-")}`);
 
       try {
-        const command = `cd ${JSON.stringify(cwd)} && cc ${session} --model ${model}`;
+        const command = `cd ${shellQuote(cwd)} && cc ${shellQuote(session)} --model ${shellQuote(model)}`;
         const { stdout } = await run("cmux", ["new-pane", "--direction", "right", "--focus", "false", "--command", command]);
         const surface = parseSurface(stdout);
 
         if (surface && brief) {
           await new Promise((resolve) => setTimeout(resolve, 1200));
-          await run("cmux", ["send", "--surface", surface, brief]);
+          await run("cmux", ["send", "--surface", surface, `${brief}\n\nWhen you receive this, reply exactly: ACK ${session}`]);
           await run("cmux", ["send-key", "--surface", surface, "enter"]);
         }
 
@@ -66,11 +73,11 @@ export default function (pi: ExtensionAPI) {
       const model = parts.shift() ?? "opus";
       const cwd = process.cwd();
       const project = path.basename(planPath).replace(/\.md$/, "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
-      const session = `${project}-executor`;
-      const brief = `Run the executor skill on ${planPath}. Load cmux and harnesses first. Use Claude Code for planner/executor judgment and Pi for routine workers when Harness:auto allows it.`;
+      const session = sessionSlug(`${project}-executor`);
+      const brief = `Run the executor skill on ${planPath}. Load cmux and harnesses first. Use Claude Code for planner/executor judgment and Pi for routine workers when Harness:auto allows it. When you receive this, reply exactly: ACK ${session}.`;
 
       try {
-        const command = `cd ${JSON.stringify(cwd)} && cc ${session} --model ${model}`;
+        const command = `cd ${shellQuote(cwd)} && cc ${shellQuote(session)} --model ${shellQuote(model)}`;
         const { stdout } = await run("cmux", ["new-pane", "--direction", "right", "--focus", "false", "--command", command]);
         const surface = parseSurface(stdout);
 
