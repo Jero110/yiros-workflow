@@ -1,0 +1,147 @@
+---
+name: planner
+description: Use when a task splits into 2+ independent subtasks worth planning as a dispatched run — produces a written plan (project name, per-subtask contracts, model, and dispatch mechanism), then hands off to `executor` to actually run it. Doesn't touch git or the Agent tool, and its only cmux actions are renaming its own pane and raising the executor's pane at hand-off.
+---
+
+# Planner
+
+## Overview
+
+Plan a multi-subtask run to completion on paper: independence check, per-subtask contract, model, and recommended dispatch mechanism. Write it to a `.md` file. Stop.
+
+**This skill never dispatches work.** It doesn't open a worktree, doesn't call the `Agent` tool, and never opens a worker pane — the only panes it ever touches are its own (rename) and the executor's (hand-off, Step 5). All actual dispatch is `executor`'s job, deliberately in a different skill — see "Why split from execution" below.
+
+## Why split from execution
+
+A plan that's fully written down is fully written down — nothing about re-reading it back costs less because the same session that wrote it is still open. What *does* cost tokens is a session carrying an entire brainstorm-or-grilling transcript into execution it doesn't need: the executor only ever needed the finished contract, never the back-and-forth that produced it.
+
+This mirrors `superpowers:writing-plans` → `superpowers:executing-plans` in this same skill set: `writing-plans` is explicit that its output must contain zero placeholders and zero "similar to Task N" back-references, precisely *because* the plan is read by a session with no memory of how it was written. Same reasoning here, applied to dispatch contracts instead of implementation tasks. The DAG "Plan & Execute" pattern used across current multi-agent systems draws the same line: a Planner produces the full graph up front; an Executor consumes it and dispatches, without inheriting the Planner's reasoning trace.
+
+**Concretely for you:** finish planning here, review the `.md`, and when you're ready to actually run it, either continue in this same session or open a brand new one — either way say "execute `<path>`" and invoke `executor`. Nothing is lost by waiting or by switching sessions; the contract is the interface.
+
+## When NOT to Use (the whole run)
+
+- Only one subtask → just do it.
+- Every subtask is short, one-shot, and independent (no collision risk, no state to hold open) → skip planning ceremony, just dispatch each directly via the `Agent` tool.
+- Subtasks share state or run in sequence → sequence the work, don't parallelize either way.
+
+## Step 1: Plan
+
+Ask the user, literally: **quick brainstorm or grilling?**
+
+- **Brainstorm** → use `planner-scoping`, not `superpowers:brainstorming` directly. It's a fork of that skill with the same questions → approaches → design → spec arc, but its terminal state hands back to *this* skill's Step 2 instead of `writing-plans`. Using the unforked `superpowers:brainstorming` here will walk its own hard gate straight into `writing-plans` — a single-session implementation plan, not a dispatch plan — silently swapping frameworks mid-run.
+- **Grilling** → use the `grilling` skill directly; it has no terminal-state gate of its own, so it's safe to use unforked. Batched numbered decisions per round, each with a recommended answer; look facts up yourself instead of asking. **External dependency** — not bundled with this skill. If `Skill(grilling)` errors with "Unknown skill", install it: `npx skills@latest add mattpocock/skills --skill=grill-me` (this pulls the whole mattpocock/skills repo; keep `grilling`, the other 36 skills it installs are unrelated to this framework and safe to delete).
+
+Either sub-skill ends in a spec (or, for grilling, a settled design tree) handed back to *this* skill's Step 2 — not to `writing-plans`, not to any implementation skill. The subtask contracts in Step 4 are `planner`'s own spec-equivalent for dispatch purposes.
+
+Planning produces a short **project name** (e.g. `auth-refactor`). Every worker `executor` later dispatches is named `<project>-<worker>`. That naming is the whole usage-tracking story — see `framework-retro`.
+
+As soon as the project name is settled, rename your own pane so it's identifiable in `cmux tree` for the rest of the run:
+```bash
+cmux rename-workspace "<project>-planner"
+```
+This is the one cmux command this skill runs directly — it doesn't need the full `cmux` skill loaded for it (no pane creation, no dispatch happens here), just this single rename.
+
+## Step 2: Independence check
+
+**REQUIRED:** apply `superpowers:dispatching-parallel-agents`'s gate. Are the subtasks genuinely independent — no shared state, no sequential dependency? If not, do not parallelize.
+
+**Shared foundation is not a reason to skip parallelizing — it's a reason to sequence one step in front of it.** A common real shape: several feature slices are independent from *each other*, but all of them sit on top of the same models/config/auth that doesn't yet exist. That foundation is not itself a subtask worth a worker — it's small, mechanical, and every worker would otherwise invent its own incompatible version, guaranteeing a merge conflict in exactly the file everyone touches.
+
+When you hit this shape: note in the plan that the shared foundation must be built first, directly, in the primary checkout, before any worker is dispatched — models, schemas, config, whatever every slice needs to import. This is a note for whoever runs `executor` (possibly you, possibly a fresh session), not something this skill does itself. Say so explicitly in the plan so it's a documented decision, not a silent scope grab discovered mid-run.
+
+## Step 3: Decide dispatch mechanism per subtask
+
+**Default to `pane` for every subtask.** A pane worker is a real, isolated Claude Code session the user can watch live, message mid-task, and see actually respond in real time — a subagent's work is invisible until it reports back, can't be messaged by another worker, and shares the primary checkout with no worktree of its own. The visibility and cross-worker messaging are the point of this whole framework, not a nice-to-have, so `pane` is the recommendation unless a subtask clearly doesn't warrant the overhead.
+
+Only recommend a **native subagent** (the `Agent` tool, no worktree, no pane) when a subtask is small enough that the overhead of a worktree + pane isn't worth it — a single trivial lookup, a one-shot read-only check, or genuinely throwaway work nobody needs to watch or message. When in doubt, use `pane`.
+
+Record the choice per subtask in the plan, as a recommendation `executor` will read. Same run can mix both — this is a per-subtask call, not a whole-run choice. Note in the contract, for any subtask you do mark `subagent`, why it didn't need a pane (so `executor` isn't left guessing whether that was a deliberate call or a default nobody reconsidered).
+
+**This is a recommendation, not an action.** Planner never opens a pane and never calls `Agent` — it writes down which mechanism fits and why, and `executor` is free to reconsider if something's changed by the time it actually dispatches (e.g., the subagent-vs-pane call was borderline and new information arrived).
+
+## Step 4: Write a task contract per subtask
+
+Four parts, nothing else:
+
+```
+Objective:      what must be true when done
+Constraints:    what must not change
+Validation:     the exact command that proves it
+Stop condition: when to stop working
+```
+
+Plus a **mechanism** (pane / subagent, from Step 3) and a **model**, chosen per `superpowers:subagent-driven-development`'s Model Selection:
+
+| Task shape | Model |
+|---|---|
+| Mechanical, isolated, 1-2 files, plan contains the code | cheapest tier |
+| Integration, multi-file, debugging, prose-described work | standard / mid tier |
+| Architecture, judgment | most capable |
+
+**Always specify the model explicitly.** Omitting it inherits whatever session runs `executor` — usually the most expensive tier.
+
+Write every contract as if the reader has never seen this conversation — because by the time `executor` reads it, it hasn't. No "similar to the login worker's setup," no "as discussed above." Spell it out, every time, same discipline as `writing-plans`'s "No Placeholders."
+
+If one subtask's brief plausibly needs a small answer from another subtask's worker (a name it picked, a shape it chose), say so explicitly in the contract — "ask `<project>-<other-worker>` for the name it used for X" — since at planning time no pane exists yet to reference by surface ID. `executor` resolves the actual surface ref at dispatch time.
+
+## Step 5: Write the plan file
+
+Save to `docs/planner/plans/YYYY-MM-DD-<project>.md` (user preference for plan location overrides this default). Structure:
+
+```markdown
+# <Project Name> — Planner Plan
+
+**Project name:** <project>
+**Planned:** YYYY-MM-DD
+**Shared foundation (if any):** <what must be built first, in the primary checkout, before dispatch>
+
+## Subtask: <name>
+
+**Mechanism:** pane | subagent
+**Model:** <tier>
+
+Objective:      ...
+Constraints:    ...
+Validation:     ...
+Stop condition: ...
+
+Cross-refs: <any "ask worker X for Y" notes>
+
+---
+
+(repeat per subtask)
+```
+
+Then stop. Ask the user, don't just declare the next step:
+
+> Plan written to `<path>`. Confirm this plan to proceed — say the word and I'll open the executor to dispatch it.
+
+Wait for an explicit confirmation before treating the plan as ready to execute, even in the same session. Do not invoke `executor` yourself off an ambiguous or absent reply.
+
+Once confirmed, raise the executor in its own pane rather than folding execution into this session — this keeps the planning transcript out of executor's context per "Why split from execution" above. **Load the `cmux` skill now, just for this one dispatch** (`Skill(cmux)`) — you're about to run a real `new-pane` + health-check + `send` sequence, and this is the one place in this skill's job that isn't the rename-only exception above:
+```bash
+cmux new-pane --direction right --focus false \
+  --command "cd <repo-root> && cc <project>-executor --model <executor-model>"
+```
+Then verify it actually started (`cmux surface-health`, `cmux read-screen --surface <surface> --lines 20` for the `cc`/Claude Code banner) before sending it anything, and send it the plan path so it invokes `executor`:
+```bash
+cmux send --surface <surface> "Run the executor skill on docs/planner/plans/<file>.md"
+cmux send-key --surface <surface> enter
+```
+This is the same launch pattern `executor` itself uses for workers — reuse it rather than reinventing a different one here. If the user says to just continue in this same session instead of opening a pane, that's fine too — invoke `executor` here directly, no cmux dispatch needed.
+
+**Everything else stays off-limits:** no worktrees, no calling `Agent`, no touching a worker's pane — that's still entirely `executor`'s job. This skill's only cmux actions, ever, are the self-rename above and this one hand-off dispatch. If the user asks you to execute right now instead of just raising the executor pane, that's a request to switch skills — invoke `executor` with the plan's path yourself, in this session, rather than opening a pane for it.
+
+## Autonomy rule
+
+Decide routine things yourself: subtask boundaries, model tier, mechanism recommendation, contract wording. Do not ask permission for these.
+
+The only genuine stop-and-ask in this skill is Step 1's brainstorm-vs-grilling choice — everything past that is yours to decide and write down.
+
+## Red Flags
+
+- Creating a worktree, opening a worker pane, or calling `Agent` from inside this skill → that's `executor`'s job; you've mixed the phases back together. (Renaming your own pane and raising the executor's pane at hand-off are the only exceptions — see Step 1 and Step 5.)
+- A contract that references "the discussion above" or "like the other worker" → the reader of this plan has no access to this conversation.
+- Skipping Step 2's independence check because subtasks "seem" independent → apply the gate explicitly, every time.
+- Deciding mechanism once for the whole run instead of per subtask → same run can mix panes and subagents.

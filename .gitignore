@@ -1,0 +1,26 @@
+# macOS/editor noise
+.DS_Store
+*.swp
+*~
+
+# Secrets and machine-local runtime state
+auth.json
+*auth*.json
+*token*
+*secret*
+*.key
+*.pem
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+history.jsonl
+sessions/
+cache/
+logs/
+file-history/
+rate-limits/
+node_modules/
+.venv/
+__pycache__/

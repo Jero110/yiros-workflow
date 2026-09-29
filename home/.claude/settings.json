@@ -1,0 +1,88 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(curl:*)",
+      "Bash(git:*)",
+      "Bash(gh auth:*)",
+      "Bash(zsh:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod +x:*)",
+      "WebSearch",
+      "Bash(lsof:*)",
+      "Bash(pkill:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ],
+    "defaultMode": "auto"
+  },
+  "model": "opus",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash "$HOME/.claude/hooks/herdr-agent-state.sh" session",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "enableWorkflows": true,
+  "statusLine": {
+    "type": "command",
+    "command": "bash "$HOME/.claude/statusline-command.sh""
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "codex@openai-codex": true,
+    "superpowers@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true,
+    "code-review@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
+    },
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
+    }
+  },
+  "alwaysThinkingEnabled": false,
+  "effortLevel": "high",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    }
+  },
+  "awaySummaryEnabled": false,
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true,
+    "mode": "hold"
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "auto",
+  "preferredNotifChannel": "ghostty",
+  "autoCompactEnabled": true,
+  "autoContinueAtUsageLimit": true,
+  "teammateMode": "in-process",
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "voiceEnabled": true
+}

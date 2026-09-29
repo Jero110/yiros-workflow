@@ -1,0 +1,313 @@
+---
+name: executor
+description: Use when you have a written planner plan (a .md with project name, per-subtask contracts, model, and dispatch mechanism) and need to actually run it — dispatching isolated workers in git worktrees or as native subagents, supervising them to a reviewed result. Takes the plan's path; do not use this skill to write a plan, use `planner` for that.
+---
+
+# Executor
+
+## Overview
+
+Read an `planner`-produced plan, dispatch each subtask per its recorded mechanism, supervise to completion, review, and hand the user something mergeable.
+
+**This skill never plans.** It doesn't decide independence, doesn't write contracts, doesn't pick a project name. All of that already happened in `planner` and is sitting in the `.md` you were handed. If no plan file exists yet, stop and say so — invoke `planner` first, don't improvise contracts inline.
+
+**Core principle:** the communication channel between Claudes is thin — worktree + pane + notify. No supervision engine sits on top of it.
+
+**Why cmux and not native subagents, for pane-mechanism subtasks:** a subagent's report lands in your context whether you want it or not. A worker in a pane does not. That only pays off when the worker runs long enough for the summary to matter, or needs to be re-addressed later with its context intact. Native subagents also share the primary checkout — no worktree of their own — so nothing stops two of them from touching the same file at once. This is exactly why the plan records a mechanism per subtask instead of choosing once for the whole run.
+
+**Always load the `cmux` skill first, unconditionally, before Step 0.** This skill's whole job is dispatching and supervising panes — creating them, checking other sessions' state, sending messages between workers — so it needs full command knowledge of cmux (new-pane, tree, read-screen, notifications, sessions, send/send-key, set-buffer/paste-buffer) loaded up front, not fetched on demand mid-dispatch. Invoke it even on a run that turns out to be all-`subagent` — the cost of having read it is small, the cost of discovering mid-run that you don't know a command you need is not.
+
+## Layout
+
+Fixed geometry, not ad hoc splits — so a glance at the screen tells you what's what without reading titles:
+
+```
+┌───────────┬───────────────┐
+│           │   worker A    │
+│ executor  ├───────────────┤
+│  (left)   │   worker B    │
+│           ├───────────────┤
+│           │   worker C    │
+├───────────┤               │
+│ reviewer  │   worker D    │
+│ (if any)  │               │
+└───────────┴───────────────┘
+```
+
+- **executor's own pane stays leftmost**, fixed, for the whole run.
+- **Workers stack to its right, split vertically** — one pane per active worker, top to bottom in dispatch order.
+- **A reviewer (or any other single right-hand-of-executor helper — a test runner, a one-off investigation) goes below executor's own pane**, left column, not mixed into the worker stack. One at a time — see Step 4.
+- **Hard cap: 7 panes open at once, total** (executor + reviewer, if any + every live worker). This is tighter than the 2-4 worker dispatch cap below by design — the dispatch cap limits *review-worthy* concurrent work, this cap limits *screen* clutter, and the two multiply, not add: executor (1) + reviewer (1) + up to 4-5 live workers stays inside it. If a plan has more subtasks than fit, the extras queue — see Step 1.
+- **Close panes the moment they stop earning their spot** — a worker once its review passes (Step 4), a reviewer once its verdict lands, a test/browser tab once you've read what you needed from it. Don't batch closes for later; an idle pane past its purpose is clutter, not a record — the ledger is the record.
+- **Dev servers, localhost previews, and anything you're testing against open as tabs**, not as additional split panes — they're not workers and don't belong in the worker stack. `cmux new-pane --type browser --url http://localhost:3000` opens as its own tab; don't `--direction` it into the split layout.
+- **Web searches / browser research open as tabs**, same reasoning — research is not a worker and doesn't compete for the fixed split geometry.
+- **Rename every pane you open so `cmux tree` is self-describing without opening it**: executor renames itself once (Step 0.5); it renames each worker's pane/workspace to `<project>-<worker>` right after confirming that worker's banner (Step 1.9); the reviewer pane, when opened, gets named `<project>-reviewer`.
+
+## Step 0: Load the plan, take over from planner
+
+0. Load the `cmux` skill (`Skill(cmux)`) before anything else in this list — see above.
+1. Read the plan file (path given by the user, or the most recent under `docs/planner/plans/`).
+2. Confirm it has the shape `planner` produces: project name, per-subtask contracts with Objective/Constraints/Validation/Stop condition, a mechanism, and a model. If it's missing any of these, stop and say so rather than guessing — that's a planning gap to fix in `planner`, not something to patch here.
+3. **If a shared foundation is noted in the plan**, build it yourself first, directly in the primary checkout — commit it — before dispatching anything. Then proceed.
+4. **Always check this workspace for a live planner pane and close it if found** — the plan file is self-sufficient once written, and the planning session isn't needed again regardless of whether this is the same conversation:
+   ```bash
+   cmux tree
+   ```
+   Look for a surface still running the planning session (its pane title or recent output will show planner's work — the plan-writing, the "Plan written to `<path>`" message). If found, close it:
+   ```bash
+   cmux close-surface --surface <planner's surface>
+   ```
+   Skip this only if `cmux tree` shows no such pane (e.g., planning happened outside cmux entirely, or it was already closed).
+5. Rename your own workspace/pane so it's identifiable as the executor for this project:
+   ```bash
+   cmux rename-workspace "<project>-executor"
+   ```
+
+## Step 1: Dispatch — pane workers vs subagents
+
+Split subtasks by the plan's recorded mechanism. Dispatch every `subagent` subtask directly via the `Agent` tool with its 4-part contract from the plan — no worktree, no pane, no ledger entry beyond noting it ran. What follows is the pane-worker path only.
+
+You may reconsider a subtask's recorded mechanism if something material changed since planning (e.g., a "safe" subagent turns out to touch a file another pane worker also needs) — but that's a deliberate override, log it in the ledger with why.
+
+Concurrency cap: **2–4 pane workers at once**, regardless of how many subtasks exist. Extra subtasks queue. Subagents don't count against this cap — dispatch those directly, in parallel, same as any other multi-subagent fan-out.
+
+**The cap exists because review, not dispatch, is the actual bottleneck.** More parallel workers than you (or the user) can meaningfully review just produces a review backlog and under-reviewed merges — the failure mode observed across current multi-agent coding practice, not a theoretical concern. 3-5 concurrent is the reported sweet spot; treat pushing past 4 as a decision to make deliberately, not a default.
+
+**Do the shared setup once, then fan out the rest in parallel.** Steps 1-3 below are per-repo, not per-subtask — do them a single time before touching any individual worker. Steps 4 onward are per-subtask and genuinely independent of each other (different worktree, different pane, different everything) — issue them for all subtasks concurrently (multiple tool calls in one message) instead of looping one worker fully through steps 4-9 before starting the next.
+
+Shared setup, once per repo:
+
+1. **Detect existing isolation first** (`superpowers:using-git-worktrees` Step 0). Never nest worktrees.
+2. **Find where this project already puts worktrees — do not assume `.worktrees/`.** An existing project-local directory wins over the default; explicit user instruction wins over both:
+   ```bash
+   git worktree list                    # reveals the convention already in use
+   ls -d .worktrees worktrees 2>/dev/null
+   ```
+   Priority: user instruction → existing directory (`.worktrees/` if both exist) → default `.worktrees/`. A repo already using `.claude/worktrees/` keeps using it — that's also Claude Code's own built-in default for `--worktree`/`EnterWorktree`, so a repo that has never customized this already has that directory.
+3. **Verify that directory is gitignored** before creating anything:
+   ```bash
+   git check-ignore -q <worktree-dir> || echo "NOT IGNORED — add to .gitignore and commit first"
+   ```
+   Exit 1 means not ignored. Add it to `.gitignore` and commit *that* first — otherwise the whole worktree tree gets committed into the repo. A repo with no `.gitignore` at all still needs this.
+4. **Set up `.worktreeinclude` for gitignored files every worker needs** (`.env`, secrets, local config) instead of copying them by hand per worker. This is Claude Code's own built-in mechanism, not cmux- or executor-specific:
+   ```bash
+   test -f .worktreeinclude || cat > .worktreeinclude <<'EOF'
+   .env
+   .env.*
+   EOF
+   git add .worktreeinclude && git commit -m "chore: copy env files into new worktrees"
+   ```
+   Syntax matches `.gitignore`; only files that are both gitignored and matched by a pattern here get copied — tracked files are never duplicated. If the project already has a `.worktreeinclude`, trust it and skip creating one; add missing patterns rather than overwriting if a specific file a worker needs (per its contract) isn't covered. This replaces manual `cp` of `.env`-style files — never symlink them regardless of mechanism, copies only.
+
+For each pane-worker subtask, in parallel:
+
+5. Create it: `git worktree add <worktree-dir>/<task-name> -b <task-name>`
+6. **Bootstrap:** install deps matching the project's own convention (`uv sync`, `npm ci`, …), then run the existing tests once to verify a clean baseline. A dirty baseline makes every later failure ambiguous. (Gitignored files arrive automatically via `.worktreeinclude` from step 4 — nothing to copy by hand here.)
+7. **Check the name is free** — `cc <name>` *resumes* an existing session, so a collision silently hands a stale session a new brief. **Check `cmux tree`, not `cc ls`:** a worker under this skill never exits (see `worker`'s "Stay in session. Do not exit."), and `cc`'s own session registration only runs after its wrapped `claude` process exits — so a live worker from a run in progress is invisible to `cc ls` by construction, and that check always false-negatives on the exact case it exists to catch.
+   ```bash
+   cmux tree | grep -q "<task-name>" && echo "COLLISION"
+   ```
+   On collision, suffix (`-2`) and ledger the rename. Never resume across tasks.
+8. Open the pane per the Layout section above — first worker splits right of executor, each subsequent worker splits down from the last one in that right-hand column — `cd`-ing into the directory resolved in step 2:
+   ```bash
+   cmux new-pane --direction right --focus false \
+     --command "cd <worktree-dir>/<task-name> && cc <task-name> --model <model>"   # first worker
+   cmux new-pane --surface <previous-worker-surface> --direction down --focus false \
+     --command "cd <worktree-dir>/<task-name> && cc <task-name> --model <model>"   # each next worker
+   ```
+   `new-pane` has **no `--cwd` flag** — the `cd` in `--command` is how the worker lands in its worktree. Use an **absolute** path for `<worktree-dir>` here: the new pane's default cwd is not guaranteed to be the repo root, so a relative `cd` can fail silently and leave a bare shell where you expect a running agent.
+
+   Steps 8-10 stay strictly sequential *within* one worker — never send a brief before step 9 confirms that worker's own banner. But there's nothing stopping worker A from being at step 9 while worker B is still at step 5: open all N panes (step 8) first, back to back, then move through step 9/10 for each.
+9. **REQUIRED — confirm the agent actually started before sending anything else:**
+   ```bash
+   cmux surface-health --workspace "$CMUX_WORKSPACE_ID"
+   cmux read-screen --surface <surface> --lines 30
+   ```
+   Check surface health first — an unhealthy surface explains a launch that looks stuck before you even get to reading its screen. Then look for the `cc`/Claude Code banner or its prompt. A bare shell prompt (`❯` with no banner, or a `cd: no such file or directory` line) means the launch command failed and you are looking at an empty shell, not a worker. Fix the command and retry step 8 — do not proceed to step 10 on a hunch that it probably worked.
+
+   Once confirmed live, rename it per the Layout section's naming rule:
+   ```bash
+   cmux rename-workspace --workspace <worker-surface's workspace> "<project>-<worker>"
+   ```
+10. Send the brief to the new surface, then Enter:
+    ```bash
+    cmux send --surface <surface> "<the 4-part contract, verbatim from the plan>"
+    cmux send-key --surface <surface> enter
+    ```
+    Sending a brief into a dead shell types it as literal shell commands, one line at a time — every line break executes, every `(`, `[`, `:` gets interpreted by the shell. This produces a wall of `zsh: bad pattern` / `command not found` errors that looks like noise, not like a dispatch failure. Treat any such errors on a just-opened surface as proof step 9 was skipped or misjudged, not as a worker problem.
+11. Ledger it (Step 2, below).
+
+**Never paste your own conversation history into a brief.** Send exactly what the plan's contract says — the contract was written assuming zero shared context, so it needs nothing added.
+
+## Step 2: Ledger
+
+`progress.md` at the run's workspace path. **One line per event.** Nothing structured — no rulings, no adjudication, no spend tracking.
+
+```
+dispatched auth-refactor-login  .worktrees/auth-login  surface:12  sonnet  14:32
+notify auth-refactor-login DONE 14:51
+review auth-refactor-login ✅ 14:58
+```
+
+Write-only on the happy path. Its only job: if your pane dies, a fresh `executor` invocation reads this plus `cmux tree` and the original plan `.md`, and knows what's still running instead of reconstructing it from memory.
+
+## Step 3: Supervise — poll the notification queue, not the screen
+
+Every worker dispatched via `cc` runs as a Claude Code session, which cmux tracks automatically through its own wrapper — no setup required for this specifically. **Check this before anything else**, since it's a stronger signal than any notification:
+
+```bash
+cmux sessions --agent claude --surface <worker-surface> --json
+```
+
+Read `agent_lifecycle` (`running`, `idle`, `needsInput`, or similar). This comes straight from Claude Code's own `Stop`/`Notification` hooks firing into cmux — it can't be missed by a worker that forgets to call `cmux notify` on its way out, the way the queue below can. Use it as your primary per-worker check; fall back to the notification queue when you need the actual report text, not just the state.
+
+**Rule that applies everywhere in this skill, not just Step 4: never `read-screen` to read what a worker actually wrote.** A narrow split pane can render a column only a few characters wide and silently lose text — not just wrap it badly. This bit during testing on exactly this kind of read (trying to see a worker's DONE report), not just on reviewer verdicts. `read-screen` is fine, and only fine, for a liveness glance — is there a banner, is the prompt idle, is it visibly stuck. The moment you want to know *what it said*, use one of these instead, in order of preference:
+1. **`cmux list-notifications --json`'s `body` field** — if the worker's report fit in its `cmux notify` call, the full text is already sitting there, no extra read needed. Check this first.
+2. **The session's `.jsonl` transcript** — for anything longer, or for a worker parked on a question that hasn't (and won't) notify. Every Claude Code session writes its full transcript, unwrapped, regardless of pane width, to `~/.claude/projects/<cwd-with-dashes>/<session-id>.jsonl`:
+   ```bash
+   ls -t ~/.claude/projects/*<worktree-dir-name-with-dashes>*/*.jsonl | head -1
+   ```
+   Parse the last assistant message's text content (`message.content[].text` on `type: "assistant"` entries, one JSON event per line). Step 4 below reuses this same mechanism for review verdicts specifically — same technique, same reason.
+
+`cmux notify` is how a worker tells you it reached a terminal state with a message attached. Don't detect *that* by re-reading the worker's pane — query the structured notification queue instead:
+
+```bash
+cmux list-notifications --json
+```
+
+This returns every queued notification with `surface_id`, `is_read`, `title`, `body`, `created_at` — filter by the worker's `surface_id` and `is_read: false` to know precisely whether *that* worker notified, with the real body text, no screen-rendering involved. This is strictly better than `read-screen` for this purpose: it can't be broken by a narrow pane (a real failure mode — see Step 4), and it distinguishes "notified" from "still working" with certainty instead of inference.
+
+**This is polling, not push — say so, and pick the interval deliberately.** cmux's notification API has no subscribe/webhook primitive that can interrupt a running Claude Code session mid-turn. `cmux wait-for` is a named sync token for coordinating scripts/hooks around cmux, not a way for a supervising session to learn instantly when an agent in another pane finishes — that agent's turn can't pause to block on a socket call. So "the executor should know the moment a worker notifies" is unreachable exactly — the real lever is interval length. Poll every 30-60 seconds while actively supervising a dispatch. Do not stretch this past a couple of minutes to save tool calls: a live human watching the same panes will otherwise routinely notice a `DONE`/`BLOCKED` before you do, which defeats the point of supervising at all. This is a structured query against already-tracked state, not a render, so it stays cheap even at 30s across several workers.
+
+```bash
+cmux list-notifications --json | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+unread = [n for n in data if not n['is_read']]
+for n in unread:
+    print(n['surface_id'], '|', n['title'], '|', n['body'])
+"
+```
+
+Note in the live-tested output on this machine that a notification can be silently marked `is_read: true` the moment its originating surface is focused/visible — not just when you explicitly call `mark-notification-read`. Don't assume `is_read: false` will still be true by the time you check a worker's surface if you looked at its pane in between; the queue and the pane can race. When in doubt about a specific worker, the `read-screen` fallback below still exists for that reason.
+
+Mark what you've handled so the queue doesn't re-surface it:
+
+```bash
+cmux mark-notification-read --id <uuid>
+```
+
+`cmux notify` catches terminal states. It does **not** catch a worker mid-task, parked at its own prompt with a question, waiting on *you* — nothing about that state fires a notify. That's the one case where you still need to look at the actual pane, because there's no queued event to poll for. Check liveness first:
+
+```bash
+cmux surface-health --workspace "$CMUX_WORKSPACE_ID"
+cmux read-screen --surface <surface> --lines 20
+```
+
+Use this only when the notification queue shows nothing but you have reason to suspect a worker stalled (e.g., unusually long since dispatch with no notify) — not as your default 30s loop. The queue is the primary signal; this liveness check is the fallback for the gap it can't cover. Check `surface-health` alongside it: a stale-looking screen and an unhealthy surface point at the pane itself being broken, not at the agent being slow.
+
+**If `read-screen` shows a parked question you need the full text of** (a multi-line prompt, a menu with wrapped option text), don't fight the render — go straight to the `.jsonl` per the rule above instead of squinting at a possibly-truncated pane.
+
+Whichever signal caught it, you have three moves available — use whichever the situation calls for:
+
+- **Parked on a question, otherwise fine** → answer it and move on. Same as handling `NEEDS_CONTEXT`, just caught without waiting for the worker to remember to notify.
+- **Visibly off track but salvageable** (misread part of the contract, chasing the wrong file, minor confusion) → clarify in place, same pane, same context. No reset needed — this is cheaper than a restart and preserves useful work already done.
+- **Genuinely stuck, thrashing, or burning context with no progress** (repeating the same failed approach, context climbing with no forward motion, clearly lost) → close it and redispatch fresh, rather than let it keep spending. This is a judgment call, not a fixed turn-count trigger — you're watching for "no longer converging," not counting to a number.
+
+```bash
+cmux close-surface --surface <surface>
+```
+
+**Don't judge "still working" from the screen alone — check real process activity:**
+
+```bash
+cmux top --workspace $CMUX_WORKSPACE_ID
+```
+
+This shows live CPU% and memory per pane, tree-structured. A pane sitting at 0% CPU for a while despite a busy-looking screen (mid-edit text, a spinner) is a stronger stuck signal than the screen itself — text can be stale, CPU can't. Use this to break ties when `read-screen` looks ambiguous, not as a routine replacement for the notification-queue poll above.
+
+**Watch for memory pressure hibernating a worker out from under you.** cmux can hibernate inactive/hidden agent surfaces under memory pressure — you'll see a `cmux está utilizando...memoria` notification in the queue when this is happening. A hibernated worker looks identical to a stalled one from the outside (no progress, no notify) until you check:
+
+```bash
+cmux memory --workspace $CMUX_WORKSPACE_ID
+```
+
+For a run you're actively supervising, turn hibernation off for its duration so a worker never silently disappears mid-task:
+
+```bash
+cmux agent-hibernation off   # before Step 1 dispatch
+cmux agent-hibernation on    # after Step 6 close-out, or when you're done supervising
+```
+
+If a worker is genuinely still working productively (mid-edit, running a command, making progress), leave it — the default action is always to leave it alone; only intervene when the screen shows a specific reason to. This changes nothing about `DONE`/`BLOCKED` handling below — those still arrive by notify.
+
+Handle reports per `superpowers:subagent-driven-development`:
+
+| Status | Action |
+|---|---|
+| `DONE` / `DONE_WITH_CONCERNS` | Proceed to review. Read the concerns first. |
+| `NEEDS_CONTEXT` | Send the missing context to the same live pane. |
+| `BLOCKED` | Assess: more context, escalate model, split the task, or correct the plan. Never force the same model to retry unchanged. |
+
+**Workers may message each other directly, on a narrow channel.** When worker A's brief references something worker B owns (a shared interface, a constant, a decision B already made — as flagged in the plan's cross-refs), routing that through you every time adds a round-trip for no benefit. Let a worker `cmux send` a short, specific question straight to another worker's surface (you'll need to resolve each worker's actual surface ref and tell both workers, since the plan only had worker *names* at write time) when:
+
+- It's a **question or a status ask**, not a code change — "what did you name the shared enum" is fine; "let me edit your file" is not. `cmux set-buffer`/`paste-buffer` is a reasonable alternative to a `send` for a short value one worker wants to hand another programmatically, rather than as a typed message.
+- It never substitutes for a real interface decision that should have been made in the plan — this is for filling small gaps in an otherwise-independent split, not for two workers renegotiating scope live. If the question reveals the split wasn't actually independent, that's a planning miss to feed back into `planner` next time, not something to patch over with more cross-talk.
+- **A worker never edits, reads via shell, or reasons about another worker's worktree files directly** — worktree isolation is what prevents the collision this skill exists to avoid, and a stray cross-worker file read defeats it as surely as a stray write would. The channel is text (or a buffer value) between two Claudes, nothing else.
+
+You don't need to broker each message, but you do need to see that it happened — it'll show up as a `cmux notify` or plain `send` on the receiving worker's surface, which your poll already covers. If cross-talk turns into a real back-and-forth, that's a `DONE_WITH_CONCERNS`-worthy detail for the sender to flag in its own report.
+
+## Step 4: Review
+
+After `DONE`/`DONE_WITH_CONCERNS`, open a **new independent pane** running the `reviewer` skill, positioned below executor's own pane per the Layout section. Never reuse the worker's pane — a worker checking its own work shares the blind spots that produced the bug. Self-review is a prerequisite, never a substitute.
+
+**One reviewer at a time, always.** If a second worker reports DONE while a review is already in progress, it queues — its worktree and pane stay live and untouched, you just don't open a second reviewer pane for it yet. This isn't just layout tidiness: review is the actual bottleneck (Step 1's cap rationale applies here too), and a queue of one thing you're reading beats two verdicts arriving in parallel that get skimmed instead of read.
+
+Open the reviewer pane, get its verdict (see below), then close it before opening the next one — never let reviewer panes accumulate.
+
+**Don't close the worker's pane on DONE.** Keep it live until its review actually lands ✅ — if the reviewer finds something, Step 5's one retry goes to that same pane with its context intact; closing early would force a cold redispatch for a fix that should've been a two-line note. Close the worker's pane only once its own review passes, or after the one retry in Step 5 fails and you've told the user.
+
+**Reading a verdict: use the `.jsonl` rule from Step 3, no exception.** The temptation here is worse than elsewhere — a busy multi-pane workspace makes `read-screen` look even more broken (narrow columns, lost text), and trusting your own diff inspection instead is exactly the self-review-substituting-for-independent-review pattern this step exists to prevent. Get the reviewer's actual verdict text from its `.jsonl`, same command as Step 3, same reasoning: it's the same mechanism `cc usage` and `framework-retro` already rely on for token accounting — reuse it here for content, not just numbers.
+
+## Step 5: When review finds a problem
+
+**One retry, not a loop.** Send the finding to the worker's still-live pane (it's still open — see Step 4). If the second attempt still isn't right, **tell the user and move on**, then close the worker's pane per the Layout section's cleanup rule. Do not escalate models, redispatch, or adjudicate rounds.
+
+This is a deliberate trade against `subagent-driven-development`'s 5-round fix loop: that exists to make unattended runs self-correct. Here the user is one notify away, so a second miss is cheaper to surface than to automate around.
+
+## Step 6: Finish
+
+**Never automerge.** Use `superpowers:finishing-a-development-branch` for close-out; the user merges from the primary checkout.
+
+When asking the user to confirm the merge, open the actual diff for them instead of asking them to read a text summary — `cmux diff --branch` renders it in a browser split, which is easier to review than terminal text and doesn't depend on them trusting your description of what changed:
+
+```bash
+cmux diff --branch --repo <worktree-path> --title "<task-name> ready to merge"
+```
+
+Check conflicts/rebase **only here**, never during the run. If `main` moved, rebase that branch before merging, one worktree at a time. A rebase conflict goes to the user — it reaches outside the worktree.
+
+## Autonomy rule
+
+Decide routine things yourself: how to phrase a correction, when to close a stuck pane, how to word a ledger line. **Do not ask permission for these.**
+
+Stop for the user only when an action reaches outside the worktrees: **a merge, a push, a publish, a rebase conflict.** Those are the only irreversible things here. Everything else, just do.
+
+## Red Flags
+
+- Writing or revising a task contract from scratch instead of pulling it from the plan → that's `planner`'s job; if the plan is missing something, that's a planning gap to send back, not yours to improvise.
+- Reading a worker's pane more often than the ~30-60s healthcheck, or reading it to judge the work rather than to check if it's stuck on a question → that's supervision creeping back in, not a status read.
+- Loading the `cmux` skill when every subtask in the plan is `subagent` → nothing in the run touches a pane; skip it.
+- Pasting your conversation history into a brief → send exactly what the contract says.
+- Dispatching without the model the plan specified → you just billed a different tier than planned.
+- Creating a worktree before checking `git check-ignore` → you may commit the whole tree.
+- Copying gitignored files by hand instead of setting up `.worktreeinclude` once → repeats manual work Claude Code already solves declaratively.
+- Sending a brief right after `new-pane` without checking `surface-health` and reading the surface first → you cannot tell a live agent from a dead shell that is about to eat your brief as commands.
+- Declaring "workers are running in parallel" without having seen each worker's banner/prompt on its surface → that is a guess dressed as a status report.
+- Reusing the worker's pane for review → same blind spots.
+- A third fix attempt → surface to the user instead.
+- Merging because it "obviously" applies cleanly → not yours to decide.
+- Closing a worker's pane the moment it says DONE → keep it live until its review actually passes; a queued or in-progress review may still need to send it a fix.
+- Opening a second reviewer pane while one is still active → queue it instead; one reviewer at a time, always.
+- Splitting a dev-server preview or a research browser into the worker column → those are tabs, not workers; don't let them compete for the fixed split geometry.
+- More than 7 panes open at once → hit the cap before dispatching further; queue the rest.

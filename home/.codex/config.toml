@@ -1,0 +1,21 @@
+# Public, portable Codex config template.
+# Copy to ~/.codex/config.toml and edit model/project trust settings for your machine.
+
+model = "gpt-5.6-sol"
+model_reasoning_effort = "medium"
+
+# Example project trust entry. Replace with your own paths.
+# [projects."/path/to/your/project"]
+# trust_level = "trusted"
+
+[tui]
+screen_reader_detection_done = true
+
+[desktop]
+followUpQueueMode = "queue"
+
+[desktop.open-in-target-preferences]
+global = "vscode"
+
+[features]
+hooks = true

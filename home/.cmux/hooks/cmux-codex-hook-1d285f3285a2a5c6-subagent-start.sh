@@ -1,0 +1,2 @@
+#!/bin/sh
+CMUX_CODEX_HOOK_PID="${PPID:-}"; export CMUX_CODEX_HOOK_PID; cmux_cli="${CMUX_CODEX_HOOK_CMUX_BIN:-${CMUX_BUNDLED_CLI_PATH:-}}"; if [ -z "$cmux_cli" ] || [ ! -x "$cmux_cli" ]; then cmux_cli="$(command -v cmux 2>/dev/null || true)"; fi; if [ -n "$CMUX_SURFACE_ID" ] && [ "$CMUX_CODEX_HOOKS_DISABLED" != "1" ] && [ -n "$cmux_cli" ]; then if [ -n "${CMUX_SOCKET_PATH:-}" ]; then "$cmux_cli" --socket "$CMUX_SOCKET_PATH" hooks codex subagent-start; else "$cmux_cli" hooks codex subagent-start; fi; else { cat >/dev/null 2>/dev/null || true; echo '{}'; }; fi

@@ -1,0 +1,13 @@
+{
+  "lastChangelogVersion": "0.87.1",
+  "theme": "dark-tokyo-soft",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.5",
+  "quietStartup": false,
+  "packages": [
+    "npm:pi-web-access",
+    "npm:pi-mcp-adapter",
+    "npm:pi-background-tasks",
+    "npm:pi-lens"
+  ]
+}

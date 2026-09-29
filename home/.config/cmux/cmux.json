@@ -1,0 +1,96 @@
+{
+  "$schema" : "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux.schema.json",
+  "activePaneBorderColor" : null,
+  "notifications" : {
+    "paneFlashColor" : "#C9B8FF"
+  },
+  "paneBorderColor" : "#3F3F46",
+  "schemaVersion" : 1,
+  "shortcuts" : {
+    "bindings" : {
+      "fileExplorerOpenSelectionFinderAlias" : {
+        "first" : {
+          "command" : false,
+          "control" : false,
+          "key" : "",
+          "option" : false,
+          "shift" : false
+        }
+      },
+      "focusDown" : {
+        "first" : {
+          "command" : true,
+          "control" : false,
+          "key" : "↓",
+          "keyCode" : 125,
+          "option" : false,
+          "shift" : false
+        }
+      },
+      "focusLeft" : {
+        "first" : {
+          "command" : true,
+          "control" : false,
+          "key" : "←",
+          "keyCode" : 123,
+          "option" : false,
+          "shift" : false
+        }
+      },
+      "focusRight" : {
+        "first" : {
+          "command" : true,
+          "control" : false,
+          "key" : "→",
+          "keyCode" : 124,
+          "option" : false,
+          "shift" : false
+        }
+      },
+      "focusUp" : {
+        "first" : {
+          "command" : true,
+          "control" : false,
+          "key" : "↑",
+          "keyCode" : 126,
+          "option" : false,
+          "shift" : false
+        }
+      }
+    }
+  },
+  "sidebar" : {
+    "showNotificationMessage" : false,
+    "showWorkspaceDescription" : false
+  },
+  "sidebarAppearance" : {
+    "darkModeTintColor" : "#11111B",
+    "lightModeTintColor" : "#11111B",
+    "matchTerminalBackground" : true,
+    "tintColor" : "#11111B",
+    "tintOpacity" : 0.22
+  },
+  "workspaceColors" : {
+    "colors" : {
+      "Ash" : "#6B7280",
+      "Charcoal" : "#18181B",
+      "Graphite" : "#27272A",
+      "Ink" : "#1F2937",
+      "Ivory" : "#F4F4F5",
+      "Matte Black" : "#11111B",
+      "Mist" : "#D1D5DB",
+      "Neutral" : "#525252",
+      "Silver" : "#9CA3AF",
+      "Slate" : "#3B3448",
+      "Soft Orange" : "#F6AD55",
+      "Steel" : "#4A4658",
+      "Taupe" : "#78716C",
+      "Warm Amber" : "#F0A45D",
+      "White" : "#FAFAFA",
+      "Zinc" : "#3F3F46"
+    },
+    "indicatorStyle" : "leftRail",
+    "notificationBadgeColor" : "#C9B8FF",
+    "selectionColor" : "#3F3F46"
+  }
+}

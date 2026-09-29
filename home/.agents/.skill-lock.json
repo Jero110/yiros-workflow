@@ -1,0 +1,44 @@
+{
+  "version": 3,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "skillFolderHash": "928950704df8a8b885c03de5da626331e6f29cf8",
+      "installedAt": "2026-02-06T13:19:09.357Z",
+      "updatedAt": "2026-02-06T13:23:56.892Z"
+    },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "c2f31172b6f256272305a5e6e7228b258446899f",
+      "installedAt": "2026-02-06T13:19:21.097Z",
+      "updatedAt": "2026-02-06T13:19:21.097Z"
+    },
+    "herdr": {
+      "source": "herdrdev/herdr",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/herdrdev/herdr.git",
+      "skillPath": "skills/herdr/SKILL.md",
+      "skillFolderHash": "b9dcfddcfa7ce43e2e4cf60e724c519be553f149",
+      "installedAt": "2026-09-14T17:56:16.822Z",
+      "updatedAt": "2026-09-14T17:56:16.822Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "codex",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-cli",
+    "opencode",
+    "claude-code"
+  ]
+}

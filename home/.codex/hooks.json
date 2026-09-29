@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.codex/herdr-agent-state.sh\" session",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

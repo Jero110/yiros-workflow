@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pi --help)",
+      "Bash(env)",
+      "Bash(pi auth *)"
+    ]
+  }
+}
