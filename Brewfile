@@ -17,6 +17,8 @@ brew "graphviz"
 brew "helix"
 # Tool to unpack installers created by Inno Setup
 brew "innoextract"
+# Lightweight and flexible command-line JSON processor
+brew "jq"
 # LLVM's OpenMP runtime library
 brew "libomp"
 # Ambitious Vim-fork focused on extensibility and agility
@@ -35,6 +37,8 @@ brew "ripgrep"
 brew "tmux"
 # Extremely fast Python package installer and resolver, written in Rust
 brew "uv"
+# Smarter cd command that learns your frequently used directories
+brew "zoxide"
 # Terraform
 brew "hashicorp/tap/terraform", trusted: true
 # Compact TeX distribution as alternative to the full TeX Live / MacTeX

@@ -116,6 +116,23 @@ printf '\nsource ~/.config/zsh/cc.zsh\n' >> ~/.zshrc
 
 The `cc` wrapper keeps Claude permission prompts by default. It only passes `--dangerously-skip-permissions` when you explicitly run with `CC_DANGEROUS_SKIP_PERMISSIONS=1`.
 
+### 8. Optional terminal utilities
+
+```sh
+brew install ripgrep jq zoxide
+printf '\n# zoxide: smarter cd\neval "$(zoxide init zsh)"\n' >> ~/.zshrc
+```
+
+Useful daily commands:
+
+```sh
+rg "ChatRequest"        # search code/text fast
+curl ... | jq           # pretty-print JSON
+z ai-harness            # jump to a frequent directory
+zi                      # choose a known directory interactively
+cd -                    # jump back to the previous directory
+```
+
 ## Install with an agent
 
 Give the agent this instruction:
