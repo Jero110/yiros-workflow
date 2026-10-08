@@ -1,0 +1,2 @@
+date,description,amount,currency,account,merchant,category,subcategory,transaction_type,confidence,notes,source_file
+2026-01-01,EJEMPLO SUPERMERCADO,-50.00,EUR,Cuenta 1234,Comercio ejemplo,Alimentación,Supermercado,expense,high,Fila de ejemplo; eliminar antes de usar,archivo_origen.csv
