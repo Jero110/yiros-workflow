@@ -2,7 +2,7 @@
   "name": "pi-extensions",
   "private": true,
   "dependencies": {
-    "pi-lens": "^4.3.0",
+    "pi-lens": "^4.4.3",
     "pi-mcp-adapter": "^5.1.0",
     "pi-web-access": "^0.37.0"
   },
