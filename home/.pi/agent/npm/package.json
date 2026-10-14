@@ -4,7 +4,7 @@
   "dependencies": {
     "pi-lens": "^4.3.0",
     "pi-mcp-adapter": "^5.1.0",
-    "pi-web-access": "^0.37.0"
+    "pi-web-access": "^0.38.0"
   },
   "overrides": {
     "@modelcontextprotocol/client": "2.3.1",
