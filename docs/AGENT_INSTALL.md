@@ -37,6 +37,7 @@ for path in \
   ~/.codex \
   ~/.cmux \
   ~/.config/cmux \
+  ~/.local/bin/cmux-nvim-open \
   ~/.config/ghostty \
   ~/.config/zsh/cc.zsh; do
   test -e "$path" && printf 'exists: %s\n' "$path"
@@ -84,9 +85,12 @@ chmod +x ~/.codex/herdr-agent-state.sh
 ### cmux
 
 ```sh
-mkdir -p ~/.cmux ~/.config/cmux
+mkdir -p ~/.cmux ~/.config/cmux ~/.local/bin
 rsync -a home/.cmux/hooks/ ~/.cmux/hooks/
 rsync -a home/.config/cmux/ ~/.config/cmux/
+cp home/.local/bin/cmux-nvim-open ~/.local/bin/cmux-nvim-open
+chmod +x ~/.local/bin/cmux-nvim-open
+cmux reload-config
 ```
 
 ### Optional terminal UI

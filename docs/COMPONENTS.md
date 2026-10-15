@@ -10,8 +10,8 @@ This repo is organized by installable layer. You can install one layer, several 
 | Claude Code | `home/.claude/` | Claude settings, hooks, statusline, and skills | Yes, if you do not use Claude Code |
 | Pi | `home/.pi/agent/` | Pi settings, extensions, theme, and npm packages | Yes, if you do not use Pi |
 | Codex | `home/.codex/` | Codex global instructions and hooks | Yes, if you do not use Codex |
-| cmux | `home/.cmux/`, `home/.config/cmux/` | Workspace/pane hooks and cmux UI config | No, if you want the integrated workflow |
-| Terminal UI | `home/.config/ghostty/`, `zsh/` | Visual theme files | Yes. Skip if you like your terminal as-is |
+| cmux | `home/.cmux/`, `home/.config/cmux/`, `home/.local/bin/cmux-nvim-open` | Workspace/pane hooks, cmux UI config, and File Explorer → nvim opener | No, if you want the integrated workflow |
+| Terminal UI | `home/.config/ghostty/`, `zsh/` | Visual theme files; README also documents optional `tree` colors and `mdp` helper | Yes. Skip if you like your terminal as-is |
 | Shell helper | `home/.config/zsh/cc.zsh` | Optional `cc` wrapper for named Claude sessions | Yes |
 
 No shell startup file is installed by default. Add `source ~/.config/zsh/cc.zsh` yourself only if you want the `cc` helper.

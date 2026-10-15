@@ -1,0 +1,84 @@
+#!/usr/bin/env zsh
+set -u
+
+log="$HOME/.local/state/cmux-nvim-open.log"
+mkdir -p "$(dirname "$log")"
+CMUX_BIN="${CMUX_BIN:-/Applications/cmux.app/Contents/Resources/bin/cmux}"
+{
+  print -r -- "\n[$(date '+%F %T')] args: $*"
+
+  if [[ $# -lt 1 || -z "${1:-}" ]]; then
+    print -r -- "no args"
+    exit 1
+  fi
+
+  file="$1"
+
+  # cmux/macOS may pass file:// URLs instead of raw paths.
+  if [[ "$file" == file://* ]]; then
+    file="${file#file://}"
+    file="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.argv[1]))' "$file")"
+  fi
+
+  if [[ ! -e "$file" ]]; then
+    print -r -- "missing: $file"
+    exit 1
+  fi
+
+  if [[ -d "$file" ]]; then
+    dir="$file"
+    target="$file"
+  else
+    dir="$(dirname "$file")"
+    target="$file"
+  fi
+
+  q_dir=${(q)dir}
+  q_target=${(q)target}
+  cmd="cd $q_dir && nvim $q_target"
+  print -r -- "cmd: $cmd"
+
+  ident="$($CMUX_BIN identify --json 2>&1)"
+  print -r -- "identify: $ident"
+
+  pane="$(print -r -- "$ident" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("focused",{}).get("pane_ref") or d.get("caller",{}).get("pane_ref") or "")' 2>/dev/null)"
+  workspace="$(print -r -- "$ident" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("focused",{}).get("workspace_ref") or d.get("caller",{}).get("workspace_ref") or "")' 2>/dev/null)"
+  print -r -- "target pane=$pane workspace=$workspace"
+
+  ext="${file:e:l}"
+  if [[ "$ext" == "pdf" ]]; then
+    print -r -- "pdf preview: $file"
+    if [[ -n "$pane" && -n "$workspace" ]]; then
+      $CMUX_BIN open "$file" --workspace "$workspace" --pane "$pane" --focus true 2>&1
+      cmux_status=$?
+    elif [[ -n "${CMUX_WORKSPACE_ID:-}" ]]; then
+      $CMUX_BIN open "$file" --workspace "$CMUX_WORKSPACE_ID" --focus true 2>&1
+      cmux_status=$?
+    else
+      $CMUX_BIN open "$file" --focus true 2>&1
+      cmux_status=$?
+    fi
+    print -r -- "cmux status: $cmux_status"
+    exit $cmux_status
+  fi
+
+  new_surface_ref=""
+  if [[ -n "$pane" && -n "$workspace" ]]; then
+    out="$($CMUX_BIN new-surface --type terminal --workspace "$workspace" --pane "$pane" --focus true --command "$cmd" 2>&1)"
+    cmux_status=$?
+    print -r -- "$out"
+    new_surface_ref="$(print -r -- "$out" | sed -n 's/^OK \(surface:[0-9][0-9]*\).*/\1/p' | head -1)"
+  elif [[ -n "${CMUX_WORKSPACE_ID:-}" ]]; then
+    workspace="$CMUX_WORKSPACE_ID"
+    out="$($CMUX_BIN new-surface --type terminal --workspace "$workspace" --focus true --command "$cmd" 2>&1)"
+    cmux_status=$?
+    print -r -- "$out"
+    new_surface_ref="$(print -r -- "$out" | sed -n 's/^OK \(surface:[0-9][0-9]*\).*/\1/p' | head -1)"
+  else
+    $CMUX_BIN new-pane --type terminal --direction right --focus true --command "$cmd" 2>&1
+    cmux_status=$?
+  fi
+
+  print -r -- "cmux status: $cmux_status"
+  exit $cmux_status
+} >> "$log" 2>&1

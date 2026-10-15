@@ -1,0 +1,130 @@
+{
+  "book-ddia": {
+    "title": "Designing Data-Intensive Applications",
+    "author": "Martin Kleppmann",
+    "path": "~/books-src/book-ddia.pdf",
+    "pages": 613,
+    "outline": "yes",
+    "outline_top_entries": 14
+  },
+  "book-philosophy-software-design": {
+    "title": "A Philosophy of Software Design",
+    "author": "John Ousterhout",
+    "path": "~/books-src/book-philosophy-software-design.pdf",
+    "pages": 188,
+    "outline": "yes",
+    "outline_top_entries": 48
+  },
+  "book-building-microservices": {
+    "title": "Building Microservices: Designing Fine-Grained Systems, 2nd ed.",
+    "author": "Sam Newman",
+    "path": "~/books-src/book-building-microservices.pdf",
+    "pages": 754,
+    "outline": "yes",
+    "outline_top_entries": 42
+  },
+  "book-data-eng-design-patterns": {
+    "title": "Data Engineering Design Patterns",
+    "author": "Bartosz Konieczny",
+    "path": "~/books-src/book-data-eng-design-patterns.pdf",
+    "pages": 375,
+    "outline": "yes",
+    "outline_top_entries": 31
+  },
+  "book-mastering-api-architecture": {
+    "title": "Mastering API Architecture",
+    "author": "James Gough, Daniel Bryant, Matthew Auburn",
+    "path": "~/books-src/book-mastering-api-architecture.pdf",
+    "pages": 289,
+    "outline": "yes",
+    "outline_top_entries": 19
+  },
+  "book-genai-services-fastapi": {
+    "title": "Building Generative AI Services with FastAPI",
+    "author": "Alireza Parandeh",
+    "path": "~/books-src/book-genai-services-fastapi.pdf",
+    "pages": 644,
+    "outline": "yes",
+    "outline_top_entries": 33
+  },
+  "book-ai-engineering": {
+    "title": "AI Engineering: Building Applications with Foundation Models",
+    "author": "Chip Huyen",
+    "path": "~/books-src/book-ai-engineering.pdf",
+    "pages": 1108,
+    "outline": "yes",
+    "outline_top_entries": 25
+  },
+  "book-genai-design-patterns": {
+    "title": "Generative AI Design Patterns",
+    "author": "Valliappa Lakshmanan, Hannes Hapke",
+    "path": "~/books-src/book-genai-design-patterns.pdf",
+    "pages": 694,
+    "outline": "yes",
+    "outline_top_entries": 24
+  },
+  "book-hands-on-llms": {
+    "title": "Hands-On Large Language Models",
+    "author": "Jay Alammar, Maarten Grootendorst",
+    "path": "~/books-src/book-hands-on-llms.pdf",
+    "pages": 598,
+    "outline": "yes",
+    "outline_top_entries": 32
+  },
+  "book-agentic-design-patterns": {
+    "title": "Agentic Design Patterns: A Hands-On Guide to Building Intelligent Systems",
+    "author": "Antonio Gulli",
+    "path": "~/books-src/book-agentic-design-patterns.pdf",
+    "pages": 482,
+    "outline": "none",
+    "outline_top_entries": 0
+  },
+  "book-building-ai-agents": {
+    "title": "Building Applications with AI Agents: Designing and Implementing Multiagent Systems",
+    "author": "Michael Albada",
+    "path": "~/books-src/book-building-ai-agents.pdf",
+    "pages": 355,
+    "outline": "yes",
+    "outline_top_entries": 34
+  },
+  "book-hands-on-ml": {
+    "title": "Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow",
+    "author": "Aurélien Géron",
+    "path": "~/books-src/book-hands-on-ml.pdf",
+    "pages": 510,
+    "outline": "yes",
+    "outline_top_entries": 11
+  },
+  "book-ml-design-patterns": {
+    "title": "Machine Learning Design Patterns",
+    "author": "Valliappa Lakshmanan, Sara Robinson, Michael Munn",
+    "path": "~/books-src/book-ml-design-patterns.pdf",
+    "pages": 408,
+    "outline": "yes",
+    "outline_top_entries": 24
+  },
+  "book-designing-ml-systems": {
+    "title": "Designing Machine Learning Systems",
+    "author": "Chip Huyen",
+    "path": "~/books-src/book-designing-ml-systems.pdf",
+    "pages": 389,
+    "outline": "yes",
+    "outline_top_entries": 31
+  },
+  "book-practical-mlops": {
+    "title": "Practical MLOps: Operationalizing Machine Learning Models",
+    "author": "Noah Gift, Alfredo Deza",
+    "path": "~/books-src/book-practical-mlops.pdf",
+    "pages": 461,
+    "outline": "yes",
+    "outline_top_entries": 47
+  },
+  "book-ml-engineering-python": {
+    "title": "Machine Learning Engineering with Python",
+    "author": "Andrew P. McMahon",
+    "path": "~/books-src/book-ml-engineering-python.pdf",
+    "pages": 239,
+    "outline": "yes",
+    "outline_top_entries": 27
+  }
+}

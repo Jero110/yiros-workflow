@@ -12,7 +12,7 @@ It is not a dotfiles dump. It is a small set of reusable agent instructions, ski
 | Claude Code | `home/.claude/` | Claude settings, statusline, hooks, Claude skills | Claude Code as planner/executor/worker/reviewer |
 | Pi | `home/.pi/agent/` | Pi settings, extensions, theme, npm packages | Pi inside the same cmux workflow |
 | Codex | `home/.codex/` | Codex instructions, hooks, rules | Codex panes in the workflow |
-| cmux | `home/.cmux/`, `home/.config/cmux/` | cmux hooks and UI config | event-based multi-agent orchestration |
+| cmux | `home/.cmux/`, `home/.config/cmux/`, `home/.local/bin/cmux-nvim-open` | cmux hooks, UI config, and File Explorer → nvim opener | event-based multi-agent orchestration plus keyboard-first file opening |
 | Terminal UI | `home/.config/ghostty/`, `zsh/` | Ghostty and Powerlevel10k themes only | the same terminal look |
 | Claude helper shell | `home/.config/zsh/cc.zsh` | optional `cc` wrapper for named Claude sessions | easier Claude session management |
 
@@ -92,9 +92,12 @@ chmod +x ~/.codex/herdr-agent-state.sh
 ### 5. cmux layer
 
 ```sh
-mkdir -p ~/.cmux ~/.config/cmux
+mkdir -p ~/.cmux ~/.config/cmux ~/.local/bin
 rsync -a home/.cmux/hooks/ ~/.cmux/hooks/
 rsync -a home/.config/cmux/ ~/.config/cmux/
+cp home/.local/bin/cmux-nvim-open ~/.local/bin/cmux-nvim-open
+chmod +x ~/.local/bin/cmux-nvim-open
+cmux reload-config
 ```
 
 ### 6. Optional terminal UI
@@ -119,8 +122,10 @@ The `cc` wrapper keeps Claude permission prompts by default. It only passes `--d
 ### 8. Optional terminal utilities
 
 ```sh
-brew install ripgrep jq zoxide
+brew install ripgrep jq zoxide tree
 printf '\n# zoxide: smarter cd\neval "$(zoxide init zsh)"\n' >> ~/.zshrc
+printf '\n# tree colors: purple directories\nexport LS_COLORS="di=1;35:fi=0"\nalias tree="tree -C"\n' >> ~/.zshrc
+printf '\n# cmux markdown preview helper\nmdp() { /Applications/cmux.app/Contents/Resources/bin/cmux open "$@" --focus true; }\n' >> ~/.zshrc
 ```
 
 Useful daily commands:
@@ -128,6 +133,8 @@ Useful daily commands:
 ```sh
 rg "ChatRequest"        # search code/text fast
 curl ... | jq           # pretty-print JSON
+tree                    # colorized tree; directories are purple
+mdp README.md           # render Markdown in cmux preview while editing via nvim
 z ai-harness            # jump to a frequent directory
 zi                      # choose a known directory interactively
 cd -                    # jump back to the previous directory
